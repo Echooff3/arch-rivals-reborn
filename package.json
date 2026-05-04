@@ -1,0 +1,16 @@
+{
+  "name": "arch-rivals-reborn-enhanced-project-plan-v8",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "esbuild ./src/main.ts --bundle --outfile=./src/main.js --platform=browser --format=iife --target=es2020",
+    "watch": "esbuild ./src/main.ts --bundle --outfile=./src/main.js --platform=browser --format=iife --target=es2020 --watch"
+  },
+  "dependencies": {
+    "three": "^0.176.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1",
+    "typescript": "^5.6.3"
+  }
+}
