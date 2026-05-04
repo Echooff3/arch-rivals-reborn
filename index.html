@@ -1,0 +1,84 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ARCH RIVALS: REBORN</title>
+    <link rel="stylesheet" href="./src/styles/index.css" />
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.163/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163/examples/jsm/"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="ui-root">
+      <div id="title-screen" class="screen">
+        <div class="title-stack">
+          <div class="title-sub">MIDWAY PRESENTS</div>
+          <div class="title-main">
+            <span class="t-arch">ARCH</span>
+            <span class="t-rivals">RIVALS</span>
+          </div>
+          <div class="title-tag">:: REBORN ::</div>
+          <div class="title-byline">2-ON-2 NO-RULES STREETBALL</div>
+          <div class="title-prompt">PRESS <kbd>ENTER</kbd> / <kbd>START</kbd> TO BALL</div>
+          <div class="title-controls">
+            <div class="ctl-group">
+              <div class="ctl-head">⌨️ KEYBOARD</div>
+              <div><kbd>WASD</kbd> MOVE</div>
+              <div><kbd>SHIFT</kbd> SPRINT</div>
+              <div><kbd>J</kbd> SHOOT</div>
+              <div><kbd>L</kbd> PASS</div>
+              <div><kbd>K</kbd> PUNCH</div>
+              <div><kbd>TAB</kbd> SWITCH</div>
+            </div>
+            <div class="ctl-group">
+              <div class="ctl-head">🎮 GAMEPAD</div>
+              <div><kbd>L-STICK</kbd> MOVE</div>
+              <div><kbd>LB/RB</kbd> SPRINT</div>
+              <div><kbd>✕ / X</kbd> SHOOT</div>
+              <div><kbd>Ⓐ / A</kbd> PASS</div>
+              <div><kbd>Ⓑ / B</kbd> PUNCH</div>
+              <div><kbd>Ⓨ / Y</kbd> SWITCH</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="hud" class="hidden">
+        <div class="scoreboard">
+          <div class="team team-home">
+            <div class="team-name">HOME</div>
+            <div class="team-score" id="score-home">00</div>
+          </div>
+          <div class="clock-stack">
+            <div class="quarter" id="quarter">Q1</div>
+            <div class="clock" id="clock">2:00</div>
+          </div>
+          <div class="team team-away">
+            <div class="team-name">AWAY</div>
+            <div class="team-score" id="score-away">00</div>
+          </div>
+        </div>
+        <div class="popup" id="popup"></div>
+        <div class="possession" id="possession"></div>
+      </div>
+
+      <div id="end-screen" class="screen hidden">
+        <div class="end-stack">
+          <div class="end-title" id="end-title">GAME OVER</div>
+          <div class="end-score" id="end-score">00 - 00</div>
+          <div class="end-prompt">PRESS <kbd>ENTER</kbd> / <kbd>START</kbd> TO REMATCH</div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
+
