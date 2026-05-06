@@ -100,6 +100,11 @@ export function computeAIIntent(ctx: AIContext, dt: number): Intent {
   const myTeam = me.team;
   const onMyTeam = holder && holder.team === myTeam;
   const opponentHasBall = holder && holder.team !== myTeam;
+  const nearestOpponent = ctx.opponents.reduce<Player | null>((best, p) => {
+    if (p.stunTimer > 0) return best;
+    if (!best) return p;
+    return distXZ(me.pos, p.pos) < distXZ(me.pos, best.pos) ? p : best;
+  }, null);
 
   // ---- PASS INTERCEPTION / CATCH LOGIC ----
   // A pass from a teammate is in flight — run to catch it!
@@ -107,6 +112,7 @@ export function computeAIIntent(ctx: AIContext, dt: number): Intent {
   if (ctx.ball.state === BallState.Pass && ctx.ball.shooter) {
     const passer = ctx.ball.shooter;
     const passIsFromTeammate = passer.team === myTeam && passer !== me;
+    const passIsFromOpponent = passer.team !== myTeam;
 
     if (passIsFromTeammate) {
       // Figure out who on my team is the "intended receiver" — the teammate
@@ -146,6 +152,24 @@ export function computeAIIntent(ctx: AIContext, dt: number): Intent {
       } else {
         // Not the intended receiver — reposition for a rebound / support spot
         // (fall through to normal logic below but bias toward offense)
+      }
+    }
+
+    if (passIsFromOpponent) {
+      const intercept = findInterceptPoint(me, ctx.ball);
+      if (intercept) {
+        const target = intercept.point;
+        const dx = target.x - me.pos.x;
+        const dz = target.z - me.pos.z;
+        const len = Math.sqrt(dx * dx + dz * dz);
+        if (len > 0.12) {
+          intent.move.set(dx / len, dz / len);
+          intent.sprint = true;
+          intent.facing = Math.atan2(dx, dz);
+        } else {
+          intent.facing = Math.atan2(ctx.ball.pos.x - me.pos.x, ctx.ball.pos.z - me.pos.z);
+        }
+        return intent;
       }
     }
   }
@@ -194,22 +218,21 @@ export function computeAIIntent(ctx: AIContext, dt: number): Intent {
       intent.move.copy(dir);
       intent.sprint = distToHoop > 4;
     } else {
-      // Teammate has ball: move to support (lane opposite) and get OPEN for a pass.
-      // Pick a support spot toward the offensive hoop but away from defenders.
-      const baseSupport = new THREE.Vector3(
-        ctx.targetHoopX * 0.6,
-        0,
-        me.index % 2 === 0 ? 3.5 : -3.5
-      );
+      // Teammate has ball: get open under the basket in the paint.
+      const laneA = new THREE.Vector3(ctx.targetHoopX * 0.84, 0, 1.6);
+      const laneB = new THREE.Vector3(ctx.targetHoopX * 0.84, 0, -1.6);
+      const laneAPressure = ctx.opponents.reduce((acc, opp) => acc + 1 / Math.max(1, distXZ(opp.pos, laneA)), 0);
+      const laneBPressure = ctx.opponents.reduce((acc, opp) => acc + 1 / Math.max(1, distXZ(opp.pos, laneB)), 0);
+      const baseSupport = (laneAPressure <= laneBPressure ? laneA : laneB).clone();
 
-      // If an opponent is crowding our support spot, drift further away to get open
+      // If an opponent is crowding our support spot, drift to create separation
       const support = baseSupport.clone();
       for (const opp of ctx.opponents) {
         if (opp.stunTimer > 0) continue;
         const d = distXZ(opp.pos, support);
-        if (d < 3) {
+        if (d < 2.8) {
           const away = new THREE.Vector3(support.x - opp.pos.x, 0, support.z - opp.pos.z).normalize();
-          support.addScaledVector(away, (3 - d) * 0.8);
+          support.addScaledVector(away, (2.8 - d) * 0.9);
         }
       }
       // Keep inside the court
@@ -218,18 +241,51 @@ export function computeAIIntent(ctx: AIContext, dt: number): Intent {
 
       seekTo(me, support, intent, distXZ(me.pos, support) > 3);
     }
-  } else if (opponentHasBall && holder) {
-    // Defense: close on ball handler or punch opportunity
-    const d = distXZ(me.pos, holder.pos);
-    intent.facing = angleXZ(me.pos, holder.pos);
+  } else if (holder && holder.team !== myTeam) {
+    // Defense: assign nearest defender to pressure the ball handler,
+    // others stay matched to nearby opponents.
+    const myBallDist = distXZ(me.pos, holder.pos);
+    const closestTeammateBallDist = ctx.teammates.length
+      ? Math.min(...ctx.teammates.map(t => (t.stunTimer > 0 ? Infinity : distXZ(t.pos, holder.pos))))
+      : Infinity;
+    const iAmPrimaryOnBallDefender = myBallDist <= closestTeammateBallDist + 0.25;
 
-    if (d < GAME.PUNCH_RANGE && me.punchCooldown <= 0) {
-      // Punch!
-      intent.punch = true;
+    if (iAmPrimaryOnBallDefender) {
+      intent.facing = angleXZ(me.pos, holder.pos);
+      if (myBallDist < GAME.PUNCH_RANGE && me.punchCooldown <= 0) {
+        intent.punch = true;
+      }
+      // Tight chase to force pressure even deep into our defensive half.
+      seekTo(me, holder.pos, intent, myBallDist > 1.6);
+      return intent;
     }
-    // Move to block hoop path
-    const betweenPoint = holder.pos.clone().lerp(new THREE.Vector3(ctx.ownHoopX, 0, 0), 0.4);
-    seekTo(me, betweenPoint, intent, d > 3);
+
+    // Secondary defenders: tightly cover nearest opponent.
+    if (nearestOpponent) {
+      const mark = nearestOpponent;
+      const d = distXZ(me.pos, mark.pos);
+      const markTarget = mark.pos.clone();
+
+      if (mark === holder) {
+        intent.facing = angleXZ(me.pos, holder.pos);
+        if (d < GAME.PUNCH_RANGE && me.punchCooldown <= 0) {
+          intent.punch = true;
+        }
+        // Shade toward our hoop to cut off direct drives.
+        markTarget.lerp(new THREE.Vector3(ctx.ownHoopX, 0, 0), 0.22);
+      } else {
+        intent.facing = angleXZ(me.pos, mark.pos);
+      }
+
+      seekTo(me, markTarget, intent, d > 2.4);
+    }
+  } else if (!onMyTeam) {
+    // Defense with no clear handler (e.g. loose/shot ball): stay attached to nearest opponent.
+    if (nearestOpponent) {
+      const d = distXZ(me.pos, nearestOpponent.pos);
+      intent.facing = angleXZ(me.pos, nearestOpponent.pos);
+      seekTo(me, nearestOpponent.pos, intent, d > 2.8);
+    }
   } else {
     // Ball in flight (shot by opponent, or pass we're not receiving) — go for rebound
     const reboundSpot = new THREE.Vector3(ctx.targetHoopX * 0.8, 0, 0);
